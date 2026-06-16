@@ -6,6 +6,9 @@ project(${PROJECT_NAME} LANGUAGES CXX C)
 
 set(PLUGIN_NAME "${PROJECT_NAME}_plugin")
 
+# Build QuickJS and the C bridge from source
+include("${CMAKE_CURRENT_SOURCE_DIR}/../cxx/quickjs.cmake")
+
 set(CMAKE_C_COMPILER "gcc")
 set(CMAKE_CXX_COMPILER "g++")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -DANDROID_STL=c++_static -DDEBUGGER_SERVER_PORT=${DEBUGGER_SERVER_PORT}")
@@ -25,9 +28,19 @@ target_include_directories(${PLUGIN_NAME} INTERFACE
 target_link_libraries(${PLUGIN_NAME} PRIVATE flutter)
 target_link_libraries(${PLUGIN_NAME} PRIVATE PkgConfig::GTK)
 
+# Build quickjs_c_bridge from source
+set(BRIDGE_NAME "quickjs_c_bridge_plugin")
+add_library(${BRIDGE_NAME} SHARED
+  "${CXX_LIB_DIR}/libfastdev_quickjs_runtime.cpp"
+)
+set_target_properties(${BRIDGE_NAME} PROPERTIES
+  CXX_VISIBILITY_PRESET hidden)
+target_link_libraries(${BRIDGE_NAME} PRIVATE quickjs)
+
 # List of absolute paths to libraries that should be bundled with the plugin
 set(flutter_qjs_bundled_libraries
-  "$<TARGET_FILE:libquickjs_c_bridge_plugin.so>"
+  "$<TARGET_FILE:${BRIDGE_NAME}>"
+  "$<TARGET_FILE:quickjs>"
   PARENT_SCOPE
 )
 
@@ -37,7 +50,5 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 endif()
 set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
 
-set(QUICKJSC_BRIDGE "libquickjs_c_bridge_plugin.so")
-set(QUICKJSC_BRIDGE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/shared/${QUICKJSC_BRIDGE}")
-install(CODE "file(REMOVE_RECURSE \"${INSTALL_BUNDLE_LIB_DIR}/${QUICKJSC_BRIDGE}\")" COMPONENT Runtime)
-install(FILES "${QUICKJSC_BRIDGE_PATH}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}" COMPONENT Runtime)
+install(FILES "$<TARGET_FILE:${BRIDGE_NAME}>" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}" COMPONENT Runtime)
+install(FILES "$<TARGET_FILE:quickjs>" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}" COMPONENT Runtime)

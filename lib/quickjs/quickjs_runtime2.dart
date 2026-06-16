@@ -162,6 +162,13 @@ class QuickJsRuntime2 extends JavascriptRuntime {
     }
   }
 
+  /// Block until a VS Code QuickJS debugger connects on [address] (e.g. "0.0.0.0:9229").
+  /// Call this right after creating the runtime, before evaluating any script.
+  void waitForDebugger([String address = '0.0.0.0:9229']) {
+    _ensureEngine();
+    jsDebuggerWaitConnection(_ctx!, address);
+  }
+
   /// Dispatch JavaScript Event loop.
   Future<void> dispatch() async {
     //await for (final _ in port) {

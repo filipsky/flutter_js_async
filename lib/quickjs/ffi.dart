@@ -1014,3 +1014,55 @@ final void Function(
               Pointer<JSPropertyEnum>,
             )>>('jsFree')
     .asFunction();
+
+/// void jsDebuggerWaitConnection(JSContext *ctx, const char *address)
+/// Blocks until a VS Code debugger connects on [address] (e.g. "0.0.0.0:9229").
+final void Function(
+  Pointer<JSContext> ctx,
+  Pointer<Utf8> address,
+) _jsDebuggerWaitConnection = _qjsLib
+    .lookup<
+        NativeFunction<
+            Void Function(
+              Pointer<JSContext>,
+              Pointer<Utf8>,
+            )>>('jsDebuggerWaitConnection')
+    .asFunction();
+
+void jsDebuggerWaitConnection(Pointer<JSContext> ctx, String address) {
+  final utf8 = address.toNativeUtf8();
+  _jsDebuggerWaitConnection(ctx, utf8);
+  malloc.free(utf8);
+}
+
+/// void jsDebuggerConnect(JSContext *ctx, const char *address)
+/// Connects to a waiting VS Code debugger on [address] (e.g. "127.0.0.1:9229").
+final void Function(
+  Pointer<JSContext> ctx,
+  Pointer<Utf8> address,
+) _jsDebuggerConnect = _qjsLib
+    .lookup<
+        NativeFunction<
+            Void Function(
+              Pointer<JSContext>,
+              Pointer<Utf8>,
+            )>>('jsDebuggerConnect')
+    .asFunction();
+
+void jsDebuggerConnect(Pointer<JSContext> ctx, String address) {
+  final utf8 = address.toNativeUtf8();
+  _jsDebuggerConnect(ctx, utf8);
+  malloc.free(utf8);
+}
+
+/// void jsDebuggerCooperate(JSContext *ctx)
+/// Pumps the debugger message loop; call periodically in long-running JS loops.
+final void Function(
+  Pointer<JSContext> ctx,
+) jsDebuggerCooperate = _qjsLib
+    .lookup<
+        NativeFunction<
+            Void Function(
+              Pointer<JSContext>,
+            )>>('jsDebuggerCooperate')
+    .asFunction();

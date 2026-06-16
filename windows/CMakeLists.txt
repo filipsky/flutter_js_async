@@ -4,6 +4,9 @@ set(PROJECT_NAME "flutter_js")
 project(${PROJECT_NAME} LANGUAGES CXX)
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 
+# Build QuickJS and the C bridge from source
+include("${CMAKE_CURRENT_SOURCE_DIR}/../cxx/quickjs-windows.cmake")
+
 # This value is used when generating builds using this plugin, so it must
 # not be changed
 set(PLUGIN_NAME "flutter_js_plugin")
@@ -19,12 +22,14 @@ target_include_directories(${PLUGIN_NAME} INTERFACE
   "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin)
 
-# List of absolute paths to libraries that should be bundled with the plugin
-set(flutter_js_bundled_libraries
-  ""
-  PARENT_SCOPE
+# Build quickjs_c_bridge.dll from source
+set(BRIDGE_NAME "quickjs_c_bridge")
+add_library(${BRIDGE_NAME} SHARED
+  "${CXX_LIB_DIR}/libfastdev_quickjs_runtime.cpp"
 )
-
+set_target_properties(${BRIDGE_NAME} PROPERTIES
+  CXX_VISIBILITY_PRESET hidden)
+target_link_libraries(${BRIDGE_NAME} PRIVATE quickjs)
 
 set(BUILD_BUNDLE_DIR "$<TARGET_FILE_DIR:${BINARY_NAME}>")
 # Make the "install" step default, as it's required to run.
@@ -34,7 +39,13 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 endif()
 
 set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}")
-set(QUICKJSC_BRIDGE "quickjs_c_bridge.dll")
-set(QUICKJSC_BRIDGE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/shared/${QUICKJSC_BRIDGE}")
-install(CODE "file(REMOVE_RECURSE \"${INSTALL_BUNDLE_LIB_DIR}/${QUICKJSC_BRIDGE}\")" COMPONENT Runtime)
-install(FILES "${QUICKJSC_BRIDGE_PATH}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}" COMPONENT Runtime)
+
+# Install both DLLs built from source
+install(FILES "$<TARGET_FILE:${BRIDGE_NAME}>" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}" COMPONENT Runtime)
+install(FILES "$<TARGET_FILE:quickjs>" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}" COMPONENT Runtime)
+
+# List of absolute paths to libraries that should be bundled with the plugin
+set(flutter_js_bundled_libraries
+  ""
+  PARENT_SCOPE
+)
