@@ -72,6 +72,12 @@ void js_debugger_connect(JSContext *ctx, const char *address);
 void js_debugger_wait_connection(JSContext *ctx, const char* address);
 int js_debugger_is_transport_connected(JSRuntime* rt);
 
+// Split accept/attach: lets the caller do the blocking accept on a background
+// thread (safe — no QuickJS involvement) and then attach the live socket on
+// the QuickJS thread (required — modifies JSContext).
+int  js_debugger_accept_connection(const char *address);
+void js_debugger_attach_handle(JSContext *ctx, int handle);
+
 JSValue js_debugger_file_breakpoints(JSContext *ctx, const char *path);
 void js_debugger_cooperate(JSContext *ctx);
 

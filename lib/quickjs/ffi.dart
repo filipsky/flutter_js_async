@@ -1066,3 +1066,41 @@ final void Function(
               Pointer<JSContext>,
             )>>('jsDebuggerCooperate')
     .asFunction();
+
+/// int jsDebuggerAcceptConnection(const char *address)
+/// Blocks until one TCP connection arrives on [address]; returns the raw
+/// socket handle (>= 0) or a negative error code.
+/// Safe to call from any thread — no QuickJS context is touched.
+final int Function(
+  Pointer<Utf8> address,
+) _jsDebuggerAcceptConnection = _qjsLib
+    .lookup<
+        NativeFunction<
+            Int32 Function(
+              Pointer<Utf8>,
+            )>>('jsDebuggerAcceptConnection')
+    .asFunction();
+
+int jsDebuggerAcceptConnection(String address) {
+  final utf8 = address.toNativeUtf8();
+  try {
+    return _jsDebuggerAcceptConnection(utf8);
+  } finally {
+    malloc.free(utf8);
+  }
+}
+
+/// void jsDebuggerAttachHandle(JSContext *ctx, int handle)
+/// Attaches an already-connected socket [handle] to the QuickJS debugger
+/// transport. Must be called from the QuickJS thread (same thread as ctx).
+final void Function(
+  Pointer<JSContext> ctx,
+  int handle,
+) jsDebuggerAttachHandle = _qjsLib
+    .lookup<
+        NativeFunction<
+            Void Function(
+              Pointer<JSContext>,
+              Int32,
+            )>>('jsDebuggerAttachHandle')
+    .asFunction();

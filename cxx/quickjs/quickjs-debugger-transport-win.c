@@ -131,6 +131,45 @@ void js_debugger_connect(JSContext *ctx, const char *address) {
     js_debugger_attach(ctx, js_transport_read, js_transport_write, js_transport_peek, js_transport_close, data);
 }
 
+// Accept exactly one incoming TCP connection and return the SOCKET handle.
+// No QuickJS context is touched — this function is safe to call from any thread,
+// including a Dart sub-isolate. Returns -1 on any error.
+int js_debugger_accept_connection(const char *address) {
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
+
+    struct sockaddr_in addr = js_debugger_parse_sockaddr(address);
+
+    SOCKET server = socket(AF_INET, SOCK_STREAM, 0);
+    if (server == INVALID_SOCKET) return -1;
+
+    int reuseAddress = 1;
+    setsockopt(server, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuseAddress, sizeof(reuseAddress));
+
+    if (bind(server, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        closesocket(server);
+        return -2;
+    }
+
+    listen(server, 1);
+
+    struct sockaddr_in client_addr;
+    int client_addr_size = (int)sizeof(client_addr);
+    SOCKET client = accept(server, (struct sockaddr *)&client_addr, &client_addr_size);
+    closesocket(server);
+
+    return (client == INVALID_SOCKET) ? -1 : (int)client;
+}
+
+// Attach an already-connected socket handle to the QuickJS debugger transport.
+// Must be called from the same thread that owns the JSContext (the QuickJS thread).
+void js_debugger_attach_handle(JSContext *ctx, int handle) {
+    struct js_transport_data *data = (struct js_transport_data *)malloc(sizeof(struct js_transport_data));
+    memset(data, 0, sizeof(js_transport_data));
+    data->handle = handle;
+    js_debugger_attach(ctx, js_transport_read, js_transport_write, js_transport_peek, js_transport_close, data);
+}
+
 void js_debugger_wait_connection(JSContext *ctx, const char *address) {
     WSADATA wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);

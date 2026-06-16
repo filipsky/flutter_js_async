@@ -169,6 +169,20 @@ class QuickJsRuntime2 extends JavascriptRuntime {
     jsDebuggerWaitConnection(_ctx!, address);
   }
 
+  /// Attach an already-accepted socket [handle] to the QuickJS debugger transport.
+  /// Must be called from the same thread that owns this context (the QuickJS thread).
+  void attachDebuggerHandle(int handle) {
+    _ensureEngine();
+    jsDebuggerAttachHandle(_ctx!, handle);
+  }
+
+  /// Blocks in a temporary sub-isolate (new OS thread) until one TCP connection
+  /// arrives on [address] (e.g. "0.0.0.0:9229"). Returns the raw socket handle
+  /// (>= 0) or a negative error code. Non-blocking to the calling isolate's
+  /// event loop — use this instead of [waitForDebugger] to avoid freezing the UI.
+  static Future<int> acceptDebuggerConnection(String address) =>
+      Isolate.run(() => jsDebuggerAcceptConnection(address));
+
   /// Dispatch JavaScript Event loop.
   Future<void> dispatch() async {
     //await for (final _ in port) {

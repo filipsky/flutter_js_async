@@ -709,4 +709,18 @@ extern "C"
     {
         js_debugger_cooperate(ctx);
     }
+
+    // Accept one TCP connection (no QuickJS involvement — safe from any thread).
+    // Returns the socket handle/fd on success, or a negative error code.
+    DLLEXPORT int jsDebuggerAcceptConnection(const char *address)
+    {
+        return js_debugger_accept_connection(address);
+    }
+
+    // Attach an already-accepted socket handle to the QuickJS debugger transport.
+    // Must be called from the QuickJS thread (same thread that owns ctx).
+    DLLEXPORT void jsDebuggerAttachHandle(JSContext *ctx, int handle)
+    {
+        js_debugger_attach_handle(ctx, handle);
+    }
 }

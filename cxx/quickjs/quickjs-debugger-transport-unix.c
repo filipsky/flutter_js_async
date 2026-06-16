@@ -114,6 +114,37 @@ static struct sockaddr_in js_debugger_parse_sockaddr(const char* address) {
     return addr;
 }
 
+int js_debugger_accept_connection(const char *address) {
+    struct sockaddr_in addr = js_debugger_parse_sockaddr(address);
+
+    int server = socket(AF_INET, SOCK_STREAM, 0);
+    if (server < 0) return -1;
+
+    int reuseAddress = 1;
+    setsockopt(server, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuseAddress, sizeof(reuseAddress));
+
+    if (bind(server, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        close(server);
+        return -2;
+    }
+
+    listen(server, 1);
+
+    struct sockaddr_in client_addr;
+    socklen_t client_addr_size = (socklen_t)sizeof(client_addr);
+    int client = accept(server, (struct sockaddr *)&client_addr, &client_addr_size);
+    close(server);
+
+    return client;
+}
+
+void js_debugger_attach_handle(JSContext *ctx, int handle) {
+    struct js_transport_data *data = (struct js_transport_data *)malloc(sizeof(struct js_transport_data));
+    memset(data, 0, sizeof(js_transport_data));
+    data->handle = handle;
+    js_debugger_attach(ctx, js_transport_read, js_transport_write, js_transport_peek, js_transport_close, data);
+}
+
 void js_debugger_connect(JSContext *ctx, const char *address) {
     struct sockaddr_in addr = js_debugger_parse_sockaddr(address);
 
