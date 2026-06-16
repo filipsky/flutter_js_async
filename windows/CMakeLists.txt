@@ -29,7 +29,7 @@ add_library(${BRIDGE_NAME} SHARED
 )
 set_target_properties(${BRIDGE_NAME} PROPERTIES
   CXX_VISIBILITY_PRESET hidden)
-target_link_libraries(${BRIDGE_NAME} PRIVATE quickjs)
+target_link_libraries(${BRIDGE_NAME} PRIVATE quickjs ws2_32)
 
 set(BUILD_BUNDLE_DIR "$<TARGET_FILE_DIR:${BINARY_NAME}>")
 # Make the "install" step default, as it's required to run.
@@ -40,9 +40,8 @@ endif()
 
 set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}")
 
-# Install both DLLs built from source
+# Install quickjs_c_bridge.dll (quickjs is statically linked into it)
 install(FILES "$<TARGET_FILE:${BRIDGE_NAME}>" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}" COMPONENT Runtime)
-install(FILES "$<TARGET_FILE:quickjs>" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}" COMPONENT Runtime)
 
 # List of absolute paths to libraries that should be bundled with the plugin
 set(flutter_js_bundled_libraries
