@@ -16276,8 +16276,8 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
     size_t alloca_size;
 
 #if !DIRECT_DISPATCH
-#define SWITCH(pc)      switch (opcode = *pc++)
-#define CASE(op)        case op: if (caller_ctx->rt->debugger_info.transport_close) js_debugger_check(ctx, pc);
+#define SWITCH(pc)      if (caller_ctx->rt->debugger_info.transport_close) { js_debugger_check(ctx, pc); } switch(opcode = *pc++)
+#define CASE(op)        case op
 #define DEFAULT         default
 #define BREAK           break
 #else

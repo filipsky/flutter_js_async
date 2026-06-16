@@ -1,7 +1,7 @@
 #include "quickjs-debugger.h"
 
-#include <unistd.h>
 #include <string.h>
+typedef int ssize_t;
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
