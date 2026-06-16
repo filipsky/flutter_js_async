@@ -6,6 +6,7 @@
 #include <assert.h>
 
 #include <winsock2.h>
+#include <ws2tcpip.h>
 
 struct js_transport_data {
     int handle;
@@ -22,7 +23,7 @@ static size_t js_transport_read(void *udata, char *buffer, size_t length) {
     if (buffer == NULL)
         return -3;
 
-    int ret = recv(data->handle, (void*)buffer, (int)length, 0);
+    int ret = recv(data->handle, buffer, (int)length, 0);
 
     if (ret == SOCKET_ERROR)
         return -4;
@@ -47,7 +48,7 @@ static size_t js_transport_write(void *udata, const char *buffer, size_t length)
     if (buffer == NULL)
         return -3;
 
-    int ret = send(data->handle, (const void *)buffer, (int)length, 0);
+    int ret = send(data->handle, buffer, (int)length, 0);
     if (ret <= 0 || (size_t)ret > length)
         return -4;
 
@@ -90,19 +91,13 @@ static void js_transport_close(JSRuntime *rt, void *udata) {
     WSACleanup();
 }
 
-void js_debugger_connect(JSContext *ctx, const char *address) {
-
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-
+static struct sockaddr_in js_debugger_parse_sockaddr(const char *address) {
     const char* port_string = strstr(address, ":");
     assert(port_string);
 
     int port = atoi(port_string + 1);
     assert(port);
 
-    int client = socket(AF_INET, SOCK_STREAM, 0);
-    assert(client > 0);
     char host_string[256];
     strcpy(host_string, address);
     host_string[port_string - address] = 0;
@@ -116,9 +111,50 @@ void js_debugger_connect(JSContext *ctx, const char *address) {
     memcpy((char *)&addr.sin_addr.s_addr, (char *)host->h_addr, host->h_length);
     addr.sin_port = htons(port);
 
+    return addr;
+}
+
+void js_debugger_connect(JSContext *ctx, const char *address) {
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
+
+    struct sockaddr_in addr = js_debugger_parse_sockaddr(address);
+
+    int client = socket(AF_INET, SOCK_STREAM, 0);
+    assert(client > 0);
+
     assert(!connect(client, (const struct sockaddr *)&addr, sizeof(addr)));
 
     struct js_transport_data *data = (struct js_transport_data *)malloc(sizeof(struct js_transport_data));
+    memset(data, 0, sizeof(js_transport_data));
     data->handle = client;
+    js_debugger_attach(ctx, js_transport_read, js_transport_write, js_transport_peek, js_transport_close, data);
+}
+
+void js_debugger_wait_connection(JSContext *ctx, const char *address) {
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
+
+    struct sockaddr_in addr = js_debugger_parse_sockaddr(address);
+
+    SOCKET server = socket(AF_INET, SOCK_STREAM, 0);
+    assert(server != INVALID_SOCKET);
+
+    int reuseAddress = 1;
+    assert(setsockopt(server, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuseAddress, sizeof(reuseAddress)) >= 0);
+
+    assert(bind(server, (struct sockaddr *)&addr, sizeof(addr)) >= 0);
+
+    listen(server, 1);
+
+    struct sockaddr_in client_addr;
+    int client_addr_size = (int)sizeof(client_addr);
+    SOCKET client = accept(server, (struct sockaddr *)&client_addr, &client_addr_size);
+    closesocket(server);
+    assert(client != INVALID_SOCKET);
+
+    struct js_transport_data *data = (struct js_transport_data *)malloc(sizeof(struct js_transport_data));
+    memset(data, 0, sizeof(js_transport_data));
+    data->handle = (int)client;
     js_debugger_attach(ctx, js_transport_read, js_transport_write, js_transport_peek, js_transport_close, data);
 }
