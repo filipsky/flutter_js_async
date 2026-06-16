@@ -1,7 +1,6 @@
 #include "quickjs-debugger.h"
 
 #include <string.h>
-typedef int ssize_t;
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -23,19 +22,18 @@ static size_t js_transport_read(void *udata, char *buffer, size_t length) {
     if (buffer == NULL)
         return -3;
 
-    //ssize_t ret = read(data->handle, (void *)buffer, length);
-	ssize_t ret = recv( data->handle, (void*)buffer, length, 0);
+    int ret = recv(data->handle, (void*)buffer, (int)length, 0);
 
-    if (ret == SOCKET_ERROR )
+    if (ret == SOCKET_ERROR)
         return -4;
 
     if (ret == 0)
         return -5;
 
-    if (ret > length)
+    if ((size_t)ret > length)
         return -6;
 
-    return ret;
+    return (size_t)ret;
 }
 
 static size_t js_transport_write(void *udata, const char *buffer, size_t length) {
@@ -46,20 +44,18 @@ static size_t js_transport_write(void *udata, const char *buffer, size_t length)
     if (length == 0)
         return -2;
 
-    if (buffer == NULL) {
+    if (buffer == NULL)
         return -3;
-	}
 
-    //size_t ret = write(data->handle, (const void *) buffer, length);
-	size_t ret = send( data->handle, (const void *) buffer, length, 0);
-    if (ret <= 0 || ret > (ssize_t) length)
+    int ret = send(data->handle, (const void *)buffer, (int)length, 0);
+    if (ret <= 0 || (size_t)ret > length)
         return -4;
 
-    return ret;
+    return (size_t)ret;
 }
 
 static size_t js_transport_peek(void *udata) {
-    WSAPOLLFD  fds[1];
+    WSAPOLLFD fds[1];
     int poll_rc;
 
     struct js_transport_data* data = (struct js_transport_data *)udata;
@@ -75,32 +71,31 @@ static size_t js_transport_peek(void *udata) {
         return -2;
     if (poll_rc > 1)
         return -3;
-    // no data
     if (poll_rc == 0)
         return 0;
-    // has data
     return 1;
 }
 
-static void js_transport_close(JSContext* ctx, void *udata) {
+static void js_transport_close(JSRuntime *rt, void *udata) {
+    (void)rt;
     struct js_transport_data* data = (struct js_transport_data *)udata;
     if (data->handle <= 0)
         return;
 
-    close(data->handle);
-	data->handle = 0;
+    closesocket(data->handle);
+    data->handle = 0;
 
     free(udata);
 
-	WSACleanup();
+    WSACleanup();
 }
 
-void js_debugger_connect(JSContext *ctx, char *address) {
+void js_debugger_connect(JSContext *ctx, const char *address) {
 
-	WSADATA wsaData;
-	WSAStartup(MAKEWORD(2, 2), &wsaData);
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
 
-    char* port_string = strstr(address, ":");
+    const char* port_string = strstr(address, ":");
     assert(port_string);
 
     int port = atoi(port_string + 1);
@@ -121,9 +116,8 @@ void js_debugger_connect(JSContext *ctx, char *address) {
     memcpy((char *)&addr.sin_addr.s_addr, (char *)host->h_addr, host->h_length);
     addr.sin_port = htons(port);
 
-	//__asm__ volatile("int $0x03");
-	assert(!connect(client, (const struct sockaddr *)&addr, sizeof(addr)));
-	    
+    assert(!connect(client, (const struct sockaddr *)&addr, sizeof(addr)));
+
     struct js_transport_data *data = (struct js_transport_data *)malloc(sizeof(struct js_transport_data));
     data->handle = client;
     js_debugger_attach(ctx, js_transport_read, js_transport_write, js_transport_peek, js_transport_close, data);
