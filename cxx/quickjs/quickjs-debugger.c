@@ -3,6 +3,20 @@
 #include <string.h>
 #include <assert.h>
 
+/* Normalize path: replace backslashes with forward slashes for cross-platform
+ * breakpoint matching. VS Code on Windows sends backslash-separated paths,
+ * while QuickJS bytecode stores forward-slash filenames from Dart. */
+static char *js_debugger_normalize_path(JSContext *ctx, const char *path) {
+    size_t len = strlen(path);
+    char *result = (char *)js_malloc(ctx, len + 1);
+    if (!result) return NULL;
+    memcpy(result, path, len + 1);
+    for (char *p = result; *p; p++) {
+        if (*p == '\\') *p = '/';
+    }
+    return result;
+}
+
 typedef struct DebuggerSuspendedState {
     uint32_t variable_reference_count;
     JSValue variable_references;
@@ -398,7 +412,17 @@ static void js_process_breakpoints(JSDebuggerInfo *info, JSValue message) {
     info->breakpoints_dirty_counter++;
 
     JSValue path_property = JS_GetPropertyStr(ctx, message, "path");
-    const char *path = JS_ToCString(ctx, path_property);
+    const char *path_raw = JS_ToCString(ctx, path_property);
+    // Normalize separators so backslash (Windows) and forward slash both match.
+    char *path = js_debugger_normalize_path(ctx, path_raw);
+    JS_FreeCString(ctx, path_raw);
+    JS_FreeValue(ctx, path_property);
+
+    if (!path) {
+        JS_FreeValue(ctx, message);
+        return;
+    }
+
     JSValue path_data = JS_GetPropertyStr(ctx, info->breakpoints, path);
 
     if (!JS_IsUndefined(path_data))
@@ -407,8 +431,7 @@ static void js_process_breakpoints(JSDebuggerInfo *info, JSValue message) {
     // this will get resolved into a pc array mirror when its detected as dirty.
     path_data = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, info->breakpoints, path, path_data);
-    JS_FreeCString(ctx, path);
-    JS_FreeValue(ctx, path_property);
+    js_free(ctx, path);
 
     JSValue breakpoints = JS_GetPropertyStr(ctx, message, "breakpoints");
     JS_SetPropertyStr(ctx, path_data, "breakpoints", breakpoints);
@@ -419,8 +442,49 @@ static void js_process_breakpoints(JSDebuggerInfo *info, JSValue message) {
 
 JSValue js_debugger_file_breakpoints(JSContext *ctx, const char* path) {
     JSDebuggerInfo *info = js_debugger_info(JS_GetRuntime(ctx));
-    JSValue path_data = JS_GetPropertyStr(ctx, info->breakpoints, path);
-    return path_data;    
+
+    char *norm_path = js_debugger_normalize_path(ctx, path);
+    if (!norm_path) return JS_UNDEFINED;
+
+    // Exact match (common case: relative paths already agree on separators).
+    JSValue path_data = JS_GetPropertyStr(ctx, info->breakpoints, norm_path);
+    if (!JS_IsUndefined(path_data)) {
+        js_free(ctx, norm_path);
+        return path_data;
+    }
+
+    // Suffix match: VS Code sends a localRoot-relative path (e.g.
+    // "customer_specific_assets/scripts/backend.js") while QuickJS may have
+    // stored the absolute path ("c:/project/sco/customer_specific_assets/...").
+    // Accept any stored key that is a path-component suffix of norm_path.
+    JSPropertyEnum *tab_atom;
+    uint32_t tab_atom_count;
+    if (JS_GetOwnPropertyNames(ctx, &tab_atom, &tab_atom_count, info->breakpoints, JS_GPN_STRING_MASK) < 0) {
+        js_free(ctx, norm_path);
+        return JS_UNDEFINED;
+    }
+
+    size_t norm_len = strlen(norm_path);
+    JSValue result = JS_UNDEFINED;
+
+    for (uint32_t i = 0; i < tab_atom_count; i++) {
+        const char *key = JS_AtomToCString(ctx, tab_atom[i].atom);
+        if (key) {
+            size_t key_len = strlen(key);
+            if (JS_IsUndefined(result) && key_len > 0 && key_len <= norm_len) {
+                const char *suffix = norm_path + (norm_len - key_len);
+                if (strcmp(suffix, key) == 0 &&
+                    (suffix == norm_path || *(suffix - 1) == '/')) {
+                    result = JS_GetPropertyStr(ctx, info->breakpoints, key);
+                }
+            }
+            JS_FreeCString(ctx, key);
+        }
+    }
+    js_free_prop_enum(ctx, tab_atom, tab_atom_count);
+
+    js_free(ctx, norm_path);
+    return result;
 }
 
 static int js_process_debugger_messages(JSDebuggerInfo *info, const uint8_t *cur_pc) {
