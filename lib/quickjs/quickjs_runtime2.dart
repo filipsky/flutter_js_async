@@ -190,6 +190,14 @@ class QuickJsRuntime2 extends JavascriptRuntime {
   static Future<int> acceptDebuggerConnection(String address, {int timeoutMs = 60000}) =>
       Isolate.run(() => jsDebuggerAcceptConnection(address, timeoutMs));
 
+  /// Process any pending debugger protocol messages without blocking.
+  /// Call this when no script is running to let VS Code complete the
+  /// attach handshake (initialize → setBreakpoints → configurationDone).
+  void cooperateDebugger() {
+    _ensureEngine();
+    jsDebuggerCooperate(_ctx!);
+  }
+
   /// Dispatch JavaScript Event loop.
   Future<void> dispatch() async {
     //await for (final _ in port) {
