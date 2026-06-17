@@ -214,7 +214,7 @@ class QuickJsRuntime2 extends JavascriptRuntime {
     final jsval = jsEval(
       ctx,
       command,
-      name ?? '<eval>',
+      name ?? sourceUrl ?? '<eval>',
       evalFlags ?? JSEvalFlag.GLOBAL,
     );
 
