@@ -1067,24 +1067,26 @@ final void Function(
             )>>('jsDebuggerCooperate')
     .asFunction();
 
-/// int jsDebuggerAcceptConnection(const char *address)
+/// int jsDebuggerAcceptConnection(const char *address, int timeout_ms)
 /// Blocks until one TCP connection arrives on [address]; returns the raw
-/// socket handle (>= 0) or a negative error code.
+/// socket handle (>= 0) or a negative error code (-3 = timeout).
 /// Safe to call from any thread — no QuickJS context is touched.
 final int Function(
   Pointer<Utf8> address,
+  int timeoutMs,
 ) _jsDebuggerAcceptConnection = _qjsLib
     .lookup<
         NativeFunction<
             Int32 Function(
               Pointer<Utf8>,
+              Int32,
             )>>('jsDebuggerAcceptConnection')
     .asFunction();
 
-int jsDebuggerAcceptConnection(String address) {
+int jsDebuggerAcceptConnection(String address, int timeoutMs) {
   final utf8 = address.toNativeUtf8();
   try {
-    return _jsDebuggerAcceptConnection(utf8);
+    return _jsDebuggerAcceptConnection(utf8, timeoutMs);
   } finally {
     malloc.free(utf8);
   }

@@ -133,8 +133,10 @@ void js_debugger_connect(JSContext *ctx, const char *address) {
 
 // Accept exactly one incoming TCP connection and return the SOCKET handle.
 // No QuickJS context is touched — this function is safe to call from any thread,
-// including a Dart sub-isolate. Returns -1 on any error.
-int js_debugger_accept_connection(const char *address) {
+// including a Dart sub-isolate.
+// timeout_ms < 0 = wait indefinitely; >= 0 = return -3 after that many milliseconds.
+// Returns >= 0 (socket handle) on success, -1 on socket error, -2 on bind error, -3 on timeout.
+int js_debugger_accept_connection(const char *address, int timeout_ms) {
     WSADATA wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);
 
@@ -153,12 +155,31 @@ int js_debugger_accept_connection(const char *address) {
 
     listen(server, 1);
 
-    struct sockaddr_in client_addr;
-    int client_addr_size = (int)sizeof(client_addr);
-    SOCKET client = accept(server, (struct sockaddr *)&client_addr, &client_addr_size);
-    closesocket(server);
+    int elapsed_ms = 0;
+    const int interval_ms = 500;
+    while (timeout_ms < 0 || elapsed_ms < timeout_ms) {
+        int wait = interval_ms;
+        if (timeout_ms >= 0 && (timeout_ms - elapsed_ms) < wait)
+            wait = timeout_ms - elapsed_ms;
 
-    return (client == INVALID_SOCKET) ? -1 : (int)client;
+        WSAPOLLFD fds[1];
+        fds[0].fd = server;
+        fds[0].events = POLLIN;
+        fds[0].revents = 0;
+
+        int rc = WSAPoll(fds, 1, wait);
+        if (rc > 0 && (fds[0].revents & POLLIN)) {
+            struct sockaddr_in client_addr;
+            int client_addr_size = (int)sizeof(client_addr);
+            SOCKET client = accept(server, (struct sockaddr *)&client_addr, &client_addr_size);
+            closesocket(server);
+            return (client == INVALID_SOCKET) ? -1 : (int)client;
+        }
+        elapsed_ms += wait;
+    }
+
+    closesocket(server);
+    return -3; /* timeout */
 }
 
 // Attach an already-connected socket handle to the QuickJS debugger transport.

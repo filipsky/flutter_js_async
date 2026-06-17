@@ -187,8 +187,8 @@ class QuickJsRuntime2 extends JavascriptRuntime {
   /// arrives on [address] (e.g. "0.0.0.0:9229"). Returns the raw socket handle
   /// (>= 0) or a negative error code. Non-blocking to the calling isolate's
   /// event loop — use this instead of [waitForDebugger] to avoid freezing the UI.
-  static Future<int> acceptDebuggerConnection(String address) =>
-      Isolate.run(() => jsDebuggerAcceptConnection(address));
+  static Future<int> acceptDebuggerConnection(String address, {int timeoutMs = 60000}) =>
+      Isolate.run(() => jsDebuggerAcceptConnection(address, timeoutMs));
 
   /// Dispatch JavaScript Event loop.
   Future<void> dispatch() async {

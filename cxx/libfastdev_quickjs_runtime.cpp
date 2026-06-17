@@ -712,9 +712,9 @@ extern "C"
 
     // Accept one TCP connection (no QuickJS involvement — safe from any thread).
     // Returns the socket handle/fd on success, or a negative error code.
-    DLLEXPORT int jsDebuggerAcceptConnection(const char *address)
+    DLLEXPORT int jsDebuggerAcceptConnection(const char *address, int timeout_ms)
     {
-        return js_debugger_accept_connection(address);
+        return js_debugger_accept_connection(address, timeout_ms);
     }
 
     // Attach an already-accepted socket handle to the QuickJS debugger transport.

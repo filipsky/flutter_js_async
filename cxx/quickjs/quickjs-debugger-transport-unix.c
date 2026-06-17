@@ -114,7 +114,9 @@ static struct sockaddr_in js_debugger_parse_sockaddr(const char* address) {
     return addr;
 }
 
-int js_debugger_accept_connection(const char *address) {
+// timeout_ms < 0 = wait indefinitely; >= 0 = return -3 after that many milliseconds.
+// Returns >= 0 (fd) on success, -1 on socket error, -2 on bind error, -3 on timeout.
+int js_debugger_accept_connection(const char *address, int timeout_ms) {
     struct sockaddr_in addr = js_debugger_parse_sockaddr(address);
 
     int server = socket(AF_INET, SOCK_STREAM, 0);
@@ -130,12 +132,31 @@ int js_debugger_accept_connection(const char *address) {
 
     listen(server, 1);
 
-    struct sockaddr_in client_addr;
-    socklen_t client_addr_size = (socklen_t)sizeof(client_addr);
-    int client = accept(server, (struct sockaddr *)&client_addr, &client_addr_size);
-    close(server);
+    int elapsed_ms = 0;
+    const int interval_ms = 500;
+    while (timeout_ms < 0 || elapsed_ms < timeout_ms) {
+        int wait = interval_ms;
+        if (timeout_ms >= 0 && (timeout_ms - elapsed_ms) < wait)
+            wait = timeout_ms - elapsed_ms;
 
-    return client;
+        struct pollfd fds[1];
+        fds[0].fd = server;
+        fds[0].events = POLLIN;
+        fds[0].revents = 0;
+
+        int rc = poll(fds, 1, wait);
+        if (rc > 0 && (fds[0].revents & POLLIN)) {
+            struct sockaddr_in client_addr;
+            socklen_t client_addr_size = (socklen_t)sizeof(client_addr);
+            int client = accept(server, (struct sockaddr *)&client_addr, &client_addr_size);
+            close(server);
+            return client;
+        }
+        elapsed_ms += wait;
+    }
+
+    close(server);
+    return -3; /* timeout */
 }
 
 void js_debugger_attach_handle(JSContext *ctx, int handle) {
