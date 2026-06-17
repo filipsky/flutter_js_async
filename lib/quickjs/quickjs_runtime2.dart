@@ -176,6 +176,13 @@ class QuickJsRuntime2 extends JavascriptRuntime {
     jsDebuggerAttachHandle(_ctx!, handle);
   }
 
+  /// Connect to a VS Code QuickJS debugger server listening on [address]
+  /// (e.g. "127.0.0.1:9229"). Must be called from the QuickJS thread.
+  void connectDebugger(String address) {
+    _ensureEngine();
+    jsDebuggerConnect(_ctx!, address);
+  }
+
   /// Blocks in a temporary sub-isolate (new OS thread) until one TCP connection
   /// arrives on [address] (e.g. "0.0.0.0:9229"). Returns the raw socket handle
   /// (>= 0) or a negative error code. Non-blocking to the calling isolate's
